@@ -3,9 +3,9 @@ Contributors: TigrouMeow
 Tags: gallery, masonry, image, block, lightroom
 Donate link: https://www.patreon.com/meowapps
 Requires at least: 6.0
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 5.4.9
+Stable tag: 5.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -56,6 +56,11 @@ SEO-friendly with automatic sitemap integration (works with Yoast SEO and others
 You can find more information on [Meow Apps: Meow Gallery](https://meowapps.com/meow-gallery/).
 
 == Changelog ==
+
+= 5.5.0 (2026/05/30) =
+* Fix: Order handling when using combined "orderby-order" parameter format.
+* Update: Improved emoji handling in gallery HTML processing and clearer error messages.
+* Add: Support for passing gallery attributes through collection shortcodes using the `gallery_{att}={value}` format.
 
 = 5.4.9 (2026/05/07) =
 * Fix: Removed srcset attribute from collection thumbnails when not available.

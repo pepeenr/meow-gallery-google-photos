@@ -154,13 +154,18 @@ class Meow_MGL_Rest
 			$params = $request->get_json_params( );
 			$gallery_id = $params['id'];
 			$search_slug = $params['search_slug'];
+			$gallery_atts = $params['gallery_atts'];
 
 			$key = [
 				'gallery_id' => 'id',
 				'wplr_collection_id' => 'wplr-collection',
 			];
 
-			$html = $this->core->gallery( [ $key[$search_slug] => $gallery_id ], [ 'isPreview' => false, 'isRest' => true ] );
+			$shortcode_atts = array();
+			$shortcode_atts[ $key[$search_slug] ] = $gallery_id;
+			$shortcode_atts = [...$shortcode_atts, ...$gallery_atts];
+
+			$html = $this->core->gallery( $shortcode_atts, [ 'isPreview' => false, 'isRest' => true ] );
 			$mwlData = json_encode( $this->core->get_rewritten_mwl_data( ) );
 			return new WP_REST_Response( [ 'success' => true, 'data' => $html, 'mwl_data' => $mwlData ], 200 );
 		}

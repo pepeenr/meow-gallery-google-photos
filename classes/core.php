@@ -337,9 +337,12 @@ class Meow_MGL_Core {
 				$orderby = $atts['order_by'];
 			}
 
-			if( strpos( $orderby, '-' ) === 0 ) {
-				$orderby = explode( '-', $orderby )[0];
-				$order   = explode( '-', $orderby )[1];
+			if( strpos( $orderby, '-' ) != false ) {
+				$left = explode( '-', $orderby )[0];
+				$right   = explode( '-', $orderby )[1];
+
+				$orderby = $left;
+				$order   = $right;
 			}
 
 
@@ -435,12 +438,19 @@ class Meow_MGL_Core {
 			$data_atts
 		);
 
-		// Run at /wp-includes/formatting.php on line 3501
-		$textarr = preg_split( '/(<.*>)/U', $html , -1, PREG_SPLIT_DELIM_CAPTURE);
-		if ( $textarr === false ) {
-			$error = preg_last_error();
-			error_log( "[MEOW GALLERY] Regex: " . preg_last_error_msg() . " (Code $error)" );
-			return "<p class='meow-error'><b>Meow Gallery:</b> There was an error while building the gallery. Check your PHP Logs.</p>";
+		// Run at /wp-includes/formatting.php on line 6037
+		// WordPress returns early if the text is simple ASCII without emoji-like content,
+		// so we only need to check preg_split if WordPress would actually run it.
+		$needs_emoji_check = str_contains( $html, '&#x' ) || 
+			!( ( function_exists( 'mb_check_encoding' ) && mb_check_encoding( $html, 'ASCII' ) ) || ! preg_match( '/[^\x00-\x7F]/', $html ) );
+		
+		if ( $needs_emoji_check ) {
+			$textarr = preg_split( '/(<.*>)/U', $html , -1, PREG_SPLIT_DELIM_CAPTURE);
+			if ( $textarr === false ) {
+				$error = preg_last_error();
+				error_log( "[MEOW GALLERY] Regex: " . preg_last_error_msg() . " (Code $error)" );
+				return "<p class='meow-error'><b>Meow Gallery:</b> The gallery is too large for your Wordpress pcre.backtrack_limit, increase it in your server settings, or reduce your gallery size.";
+			}
 		}
 		
 		//The Gallery Container is where the images in the right layout will be rendered.
