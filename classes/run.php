@@ -12,6 +12,9 @@ class Meow_MGL_Run {
 		if ( !$override_disabled ) { add_shortcode( 'gallery', array( $core, 'gallery' ) ); }
 		add_shortcode( 'meow-gallery', array( $core, 'gallery' ) );
 
+		$google_photos = new Meow_MGL_Google_Photos( $core );
+		add_shortcode( 'mgl-google-photos', array( $google_photos, 'shortcode' ) );
+
 		if ( is_admin() ) {
 			add_action( 'init', array( $this, 'enqueue_scripts' ) );
 			add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_styles' ) );
