@@ -199,30 +199,33 @@ class Meow_MGL_Google_Photos {
 			$fullres  = $this->get_fullres_url( $url );
 			$fake_id  = 'mwl-gphoto-' . md5( $url );
 
+			// This must match the structure Meow Lightbox produces in
+			// get_exif_info(): the lightbox reads dimension.width/height (an
+			// object, not a [w,h] array) and the flat data.* fields below.
 			$mwl_entries[ $fake_id ] = [
-				'success'   => true,
-				'file'      => $fullres,
-				'dimension' => [ $w, $h ],
-				'data'      => [
-					'id'          => $fake_id,
-					'title'       => '',
-					'description' => '',
-					'caption'     => '',
-					'alt'         => 'Google Photo',
-					'mime_type'   => 'image/jpeg',
-					'exif'        => [
-						'camera'      => 'N/A',
-						'aperture'    => 'N/A',
-						'shutter'     => 'N/A',
-						'focal'       => 'N/A',
-						'iso'         => 'N/A',
-						'date'        => 'N/A',
-						'keywords'    => [],
-						'orientation' => 1,
-					],
-					'url'    => $fullres,
-					'width'  => $w,
-					'height' => $h,
+				'success'       => true,
+				'file'          => $fullres,
+				'file_srcset'   => '',
+				'file_sizes'    => '',
+				'dimension'     => [ 'width' => $w, 'height' => $h ],
+				'download_link' => $fullres,
+				'data'          => [
+					'id'            => $fake_id,
+					'title'         => '',
+					'caption'       => '',
+					'description'   => '',
+					'alt_text'      => 'Google Photo',
+					'gps'           => 'N/A',
+					'copyright'     => '',
+					'author'        => '',
+					'camera'        => 'N/A',
+					'date'          => 'N/A',
+					'lens'          => 'N/A',
+					'aperture'      => 'N/A',
+					'focal_length'  => 'N/A',
+					'iso'           => 'N/A',
+					'shutter_speed' => 'N/A',
+					'keywords'      => [],
 				],
 			];
 
@@ -267,8 +270,9 @@ class Meow_MGL_Google_Photos {
 		$html .= '<div class="mgl-gallery-images">';
 		foreach ( $photos as $url ) {
 			$fullres = $this->get_fullres_url( $url );
+			$fake_id = 'mwl-gphoto-' . md5( $url );
 			$html   .= '<a href="' . esc_url( $fullres ) . '" target="_self" rel="">';
-			$html   .= '<img loading="lazy" src="' . esc_url( $url ) . '" alt="Google Photo" />';
+			$html   .= '<img loading="lazy" src="' . esc_url( $url ) . '" data-mwl-img-id="' . esc_attr( $fake_id ) . '" alt="Google Photo" />';
 			$html   .= '</a>';
 		}
 		$html .= '</div>';
