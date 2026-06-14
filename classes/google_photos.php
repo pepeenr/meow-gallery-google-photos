@@ -51,12 +51,12 @@ class Meow_MGL_Google_Photos {
 		$cache_interval = isset( $attributes['cacheInterval'] ) ? intval( $attributes['cacheInterval'] ) : self::CACHE_INTERVAL;
 		$layout = !empty( $attributes['layout'] ) ? sanitize_key( $attributes['layout'] ) : $this->core->get_option( 'layout', 'tiles' );
 
-		$photos = $this->get_photos( $album_url, $cache_interval );
-		if ( empty( $photos ) ) {
+		$album = $this->get_album( $album_url, $cache_interval );
+		if ( empty( $album['photos'] ) ) {
 			return '';
 		}
 
-		return $this->render_gallery( $photos, $layout );
+		return $this->render_gallery( $album, $layout );
 	}
 
 	public function shortcode( $atts ) {
@@ -74,12 +74,12 @@ class Meow_MGL_Google_Photos {
 		$cache_interval = intval( $atts['cache_interval'] );
 		$layout = !empty( $atts['layout'] ) ? sanitize_key( $atts['layout'] ) : $this->core->get_option( 'layout', 'tiles' );
 
-		$photos = $this->get_photos( $album_url, $cache_interval );
-		if ( empty( $photos ) ) {
+		$album = $this->get_album( $album_url, $cache_interval );
+		if ( empty( $album['photos'] ) ) {
 			return '<p><b>Meow Gallery:</b> No photos found in the album. Make sure the album is set to public.</p>';
 		}
 
-		return $this->render_gallery( $photos, $layout );
+		return $this->render_gallery( $album, $layout );
 	}
 
 	public function is_valid_album_url( $url ) {
@@ -90,17 +90,21 @@ class Meow_MGL_Google_Photos {
 		return true;
 	}
 
-	public function get_photos( $album_url, $cache_interval ) {
+	/**
+	 * Return the album as [ 'title' => string, 'author' => string, 'photos' => [...] ],
+	 * each photo being [ 'url', 'width', 'height', 'date' (ms) ]. Cached per album.
+	 */
+	public function get_album( $album_url, $cache_interval ) {
 		$option_name = 'mgl_gphoto_' . md5( $album_url );
 		$cached      = get_option( $option_name );
-		if ( $cached && !empty( $cached['photos'] ) && ( $cached['time'] + ( $cache_interval * 60 ) > time() ) ) {
-			return $cached['photos'];
+		if ( $cached && !empty( $cached['album']['photos'] ) && ( $cached['time'] + ( $cache_interval * 60 ) > time() ) ) {
+			return $cached['album'];
 		}
-		$photos = $this->fetch_from_google( $album_url );
-		if ( $cache_interval && !empty( $photos ) ) {
-			update_option( $option_name, [ 'time' => time(), 'photos' => $photos ] );
+		$album = $this->fetch_from_google( $album_url );
+		if ( $cache_interval && !empty( $album['photos'] ) ) {
+			update_option( $option_name, [ 'time' => time(), 'album' => $album ] );
 		}
-		return $photos;
+		return $album;
 	}
 
 	public function clear_cache( $album_url ) {
@@ -108,15 +112,38 @@ class Meow_MGL_Google_Photos {
 	}
 
 	private function fetch_from_google( $album_url ) {
-		$photos = [];
-		$body   = $this->http_get( $album_url );
+		$album = [ 'title' => '', 'author' => '', 'photos' => [] ];
+		$body  = $this->http_get( $album_url );
 		if ( empty( $body ) ) {
 			error_log( 'Meow Gallery (Google Photos): empty response when fetching ' . $album_url );
-			return $photos;
+			return $album;
 		}
+
+		// Album title (clean name from <title>, falling back to og:title).
+		if ( preg_match( '@<title>(.*?) - Google Photos</title>@s', $body, $tm ) ) {
+			$album['title'] = html_entity_decode( trim( $tm[1] ), ENT_QUOTES );
+		} elseif ( preg_match( '@<meta property="og:title" content="([^"]*)"@', $body, $om ) ) {
+			$album['title'] = html_entity_decode( $om[1], ENT_QUOTES );
+		}
+
+		// Album owner / author display name (it precedes the owner's avatar URL).
+		if ( preg_match( '@\["([^"]{1,80})",\d+,null,"[^"]*"\],\["https://lh3\.googleusercontent\.com/a[-/]@', $body, $am ) ) {
+			$album['author'] = html_entity_decode( $am[1], ENT_QUOTES );
+		}
+
+		// Per-photo "taken" timestamps (ms), keyed by URL. The timestamp is the
+		// first 13-digit number after each photo's media-info array.
+		$dates = [];
+		if ( preg_match_all( '@\["AF1Q[^"]*",\["(https://[^"]+)",\d+,\d+.*?\],(\d{13}),@s', $body, $dm, PREG_SET_ORDER ) ) {
+			foreach ( $dm as $d ) {
+				if ( !isset( $dates[ $d[1] ] ) ) {
+					$dates[ $d[1] ] = (int) $d[2];
+				}
+			}
+		}
+
+		// Photos: URL + dimensions (kept optional so a photo is never dropped).
 		// Each photo appears as: ["AF1Q...",["<url>",<width>,<height>, ...
-		// Capturing the dimensions lets the gallery and lightbox use the real
-		// aspect ratio instead of a placeholder (which caused a resize "blink").
 		preg_match_all( '@\["AF1Q[^"]*",\["(https://[^"]+)"(?:,(\d+),(\d+))?@', $body, $matches, PREG_SET_ORDER );
 		$seen = [];
 		foreach ( $matches as $m ) {
@@ -125,13 +152,14 @@ class Meow_MGL_Google_Photos {
 				continue;
 			}
 			$seen[ $url ] = true;
-			$photos[] = [
+			$album['photos'][] = [
 				'url'    => $url,
 				'width'  => isset( $m[2] ) && $m[2] !== '' ? (int) $m[2] : 0,
 				'height' => isset( $m[3] ) && $m[3] !== '' ? (int) $m[3] : 0,
+				'date'   => isset( $dates[ $url ] ) ? $dates[ $url ] : 0,
 			];
 		}
-		return $photos;
+		return $album;
 	}
 
 	/**
@@ -187,30 +215,36 @@ class Meow_MGL_Google_Photos {
 	 */
 	private function normalize_photo( $photo ) {
 		if ( is_array( $photo ) ) {
-			$url = isset( $photo['url'] ) ? $photo['url'] : '';
-			$w   = !empty( $photo['width'] ) ? (int) $photo['width'] : 0;
-			$h   = !empty( $photo['height'] ) ? (int) $photo['height'] : 0;
+			$url  = isset( $photo['url'] ) ? $photo['url'] : '';
+			$w    = !empty( $photo['width'] ) ? (int) $photo['width'] : 0;
+			$h    = !empty( $photo['height'] ) ? (int) $photo['height'] : 0;
+			$date = !empty( $photo['date'] ) ? (int) $photo['date'] : 0;
 		} else {
-			$url = (string) $photo;
-			$w   = 0;
-			$h   = 0;
+			$url  = (string) $photo;
+			$w    = 0;
+			$h    = 0;
+			$date = 0;
 		}
 		if ( !$w || !$h ) {
 			$w = 800;
 			$h = 600;
 		}
-		return [ 'url' => $url, 'width' => $w, 'height' => $h ];
+		return [ 'url' => $url, 'width' => $w, 'height' => $h, 'date' => $date ];
 	}
 
 	private function get_fullres_url( $url ) {
 		return preg_replace( '/=w\d+.*$/', '', $url ) . '=w2048';
 	}
 
-	private function render_gallery( $photos, $layout ) {
+	private function render_gallery( $album, $layout ) {
 		$atts = [ 'layout' => $layout, 'link' => 'media' ];
 
 		// Normalize entries (also handles older caches that stored URL strings).
-		$photos = array_map( [ $this, 'normalize_photo' ], $photos );
+		$photos = array_map( [ $this, 'normalize_photo' ], $album['photos'] );
+		$title  = isset( $album['title'] ) ? $album['title'] : '';
+		$author = isset( $album['author'] ) ? $album['author'] : '';
+		$alt    = $title !== '' ? $title : 'Google Photo';
+		$date_format = get_option( 'date_format', 'Y-m-d' );
 
 		// Trigger the Meow Gallery pipeline so the gallery JS is enqueued and
 		// localized. We must match core's 3-argument signature: other plugins
@@ -229,6 +263,7 @@ class Meow_MGL_Google_Photos {
 			$h        = $photo['height'];
 			$fullres  = $this->get_fullres_url( $url );
 			$fake_id  = 'mwl-gphoto-' . md5( $url );
+			$date_str = $photo['date'] ? wp_date( $date_format, intdiv( $photo['date'], 1000 ) ) : 'N/A';
 
 			// This must match the structure Meow Lightbox produces in
 			// get_exif_info(): the lightbox reads dimension.width/height (an
@@ -242,15 +277,15 @@ class Meow_MGL_Google_Photos {
 				'download_link' => $fullres,
 				'data'          => [
 					'id'            => $fake_id,
-					'title'         => '',
+					'title'         => $title,
 					'caption'       => '',
 					'description'   => '',
-					'alt_text'      => 'Google Photo',
+					'alt_text'      => $alt,
 					'gps'           => 'N/A',
 					'copyright'     => '',
-					'author'        => '',
+					'author'        => $author,
 					'camera'        => 'N/A',
-					'date'          => 'N/A',
+					'date'          => $date_str,
 					'lens'          => 'N/A',
 					'aperture'      => 'N/A',
 					'focal_length'  => 'N/A',
@@ -263,7 +298,7 @@ class Meow_MGL_Google_Photos {
 			$gallery_images[] = [
 				'id'          => '0',
 				'caption'     => '',
-				'img_html'    => '<img loading="lazy" src="' . esc_attr( $url ) . '" data-mwl-img-id="' . esc_attr( $fake_id ) . '" alt="Google Photo" />',
+				'img_html'    => '<img loading="lazy" src="' . esc_attr( $url ) . '" data-mwl-img-id="' . esc_attr( $fake_id ) . '" alt="' . esc_attr( $alt ) . '" />',
 				'link_href'   => $fullres,
 				'link_target' => '_self',
 				'link_rel'    => null,
@@ -304,7 +339,7 @@ class Meow_MGL_Google_Photos {
 			$fullres = $this->get_fullres_url( $url );
 			$fake_id = 'mwl-gphoto-' . md5( $url );
 			$html   .= '<a href="' . esc_url( $fullres ) . '" target="_self" rel="">';
-			$html   .= '<img loading="lazy" src="' . esc_url( $url ) . '" data-mwl-img-id="' . esc_attr( $fake_id ) . '" alt="Google Photo" />';
+			$html   .= '<img loading="lazy" src="' . esc_url( $url ) . '" data-mwl-img-id="' . esc_attr( $fake_id ) . '" alt="' . esc_attr( $alt ) . '" />';
 			$html   .= '</a>';
 		}
 		$html .= '</div>';
