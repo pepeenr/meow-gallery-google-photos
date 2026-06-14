@@ -8,11 +8,21 @@ Author: Jordy Meow (Google Photos edition by pepeenr)
 Author URI: https://github.com/pepeenr/meow-gallery-google-photos
 Text Domain: meow-gallery
 Domain Path: /languages
+License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Customized fork that merges Google Photos album support into Meow Gallery.
-Original plugin developed by Jordy Meow:
-- Jordy Meow (https://offbeatjapan.org)
-- Haikyo (https://haikyo.org)
+
+This program is free software; you can redistribute it and/or modify it under
+the terms of the GNU General Public License, version 2 or (at your option) any
+later version. See the LICENSE file for the full license text.
+
+Credits:
+- Meow Gallery, by Jordy Meow / Meow Apps (https://meowapps.com) — the gallery
+  engine this plugin is based on (GPLv2 or later).
+- Simple Google Photos Grid, by Josheli
+  (https://github.com/datvance/simple-google-photos-grid) — the public Google
+  Photos album fetching approach was adapted from this plugin (GPL2).
 */
 
 if ( !defined( 'MGL_VERSION' ) ) {
