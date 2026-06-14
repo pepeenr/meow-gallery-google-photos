@@ -114,11 +114,22 @@ class Meow_MGL_Google_Photos {
 			error_log( 'Meow Gallery (Google Photos): empty response when fetching ' . $album_url );
 			return $photos;
 		}
-		preg_match_all( '@\["AF1Q.*?",\["(.*?)"\,@', $body, $urls );
-		if ( isset( $urls[1] ) ) {
-			$photos = array_values( array_unique( array_filter( $urls[1], function ( $url ) {
-				return strpos( $url, 'https://' ) === 0;
-			} ) ) );
+		// Each photo appears as: ["AF1Q...",["<url>",<width>,<height>, ...
+		// Capturing the dimensions lets the gallery and lightbox use the real
+		// aspect ratio instead of a placeholder (which caused a resize "blink").
+		preg_match_all( '@\["AF1Q[^"]*",\["(https://[^"]+)"(?:,(\d+),(\d+))?@', $body, $matches, PREG_SET_ORDER );
+		$seen = [];
+		foreach ( $matches as $m ) {
+			$url = $m[1];
+			if ( isset( $seen[ $url ] ) ) {
+				continue;
+			}
+			$seen[ $url ] = true;
+			$photos[] = [
+				'url'    => $url,
+				'width'  => isset( $m[2] ) && $m[2] !== '' ? (int) $m[2] : 0,
+				'height' => isset( $m[3] ) && $m[3] !== '' ? (int) $m[3] : 0,
+			];
 		}
 		return $photos;
 	}
@@ -169,11 +180,26 @@ class Meow_MGL_Google_Photos {
 		return wp_remote_retrieve_body( $response );
 	}
 
-	private function get_dimensions_from_url( $url ) {
-		if ( preg_match( '/=w(\d+)-h(\d+)/', $url, $m ) ) {
-			return [ (int) $m[1], (int) $m[2] ];
+	/**
+	 * Normalize a photo entry to [ 'url', 'width', 'height' ], filling in a
+	 * sane fallback when dimensions are missing (or when reading an older cache
+	 * that stored plain URL strings).
+	 */
+	private function normalize_photo( $photo ) {
+		if ( is_array( $photo ) ) {
+			$url = isset( $photo['url'] ) ? $photo['url'] : '';
+			$w   = !empty( $photo['width'] ) ? (int) $photo['width'] : 0;
+			$h   = !empty( $photo['height'] ) ? (int) $photo['height'] : 0;
+		} else {
+			$url = (string) $photo;
+			$w   = 0;
+			$h   = 0;
 		}
-		return [ 800, 600 ];
+		if ( !$w || !$h ) {
+			$w = 800;
+			$h = 600;
+		}
+		return [ 'url' => $url, 'width' => $w, 'height' => $h ];
 	}
 
 	private function get_fullres_url( $url ) {
@@ -182,6 +208,9 @@ class Meow_MGL_Google_Photos {
 
 	private function render_gallery( $photos, $layout ) {
 		$atts = [ 'layout' => $layout, 'link' => 'media' ];
+
+		// Normalize entries (also handles older caches that stored URL strings).
+		$photos = array_map( [ $this, 'normalize_photo' ], $photos );
 
 		// Trigger the Meow Gallery pipeline so the gallery JS is enqueued and
 		// localized. We must match core's 3-argument signature: other plugins
@@ -194,8 +223,10 @@ class Meow_MGL_Google_Photos {
 		$gallery_images = [];
 		$mwl_entries    = [];
 
-		foreach ( $photos as $url ) {
-			[ $w, $h ] = $this->get_dimensions_from_url( $url );
+		foreach ( $photos as $photo ) {
+			$url      = $photo['url'];
+			$w        = $photo['width'];
+			$h        = $photo['height'];
 			$fullres  = $this->get_fullres_url( $url );
 			$fake_id  = 'mwl-gphoto-' . md5( $url );
 
@@ -268,7 +299,8 @@ class Meow_MGL_Google_Photos {
 		);
 		$html .= '<div class="mgl-gallery-container"></div>';
 		$html .= '<div class="mgl-gallery-images">';
-		foreach ( $photos as $url ) {
+		foreach ( $photos as $photo ) {
+			$url     = $photo['url'];
 			$fullres = $this->get_fullres_url( $url );
 			$fake_id = 'mwl-gphoto-' . md5( $url );
 			$html   .= '<a href="' . esc_url( $fullres ) . '" target="_self" rel="">';
