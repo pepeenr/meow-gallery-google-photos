@@ -108,13 +108,12 @@ class Meow_MGL_Google_Photos {
 	}
 
 	private function fetch_from_google( $album_url ) {
-		$photos   = [];
-		$response = wp_safe_remote_get( $album_url, [ 'timeout' => 15 ] );
-		if ( is_wp_error( $response ) ) {
-			error_log( 'Meow Gallery (Google Photos): ' . $response->get_error_message() );
+		$photos = [];
+		$body   = $this->http_get( $album_url );
+		if ( empty( $body ) ) {
+			error_log( 'Meow Gallery (Google Photos): empty response when fetching ' . $album_url );
 			return $photos;
 		}
-		$body = wp_remote_retrieve_body( $response );
 		preg_match_all( '@\["AF1Q.*?",\["(.*?)"\,@', $body, $urls );
 		if ( isset( $urls[1] ) ) {
 			$photos = array_values( array_unique( array_filter( $urls[1], function ( $url ) {
@@ -122,6 +121,52 @@ class Meow_MGL_Google_Photos {
 			} ) ) );
 		}
 		return $photos;
+	}
+
+	/**
+	 * Fetch a remote URL and return the (decompressed) body.
+	 *
+	 * Google Photos serves the album over a compressed response and via a
+	 * redirect from the short photos.app.goo.gl link. On several PHP/cURL builds
+	 * the WordPress HTTP API mishandles this (cURL error 52, or an undecoded
+	 * gzip body that yields zero photos), so we use cURL directly with automatic
+	 * decompression and redirect following. We fall back to the WordPress HTTP
+	 * API when cURL is not available.
+	 *
+	 * A non-browser User-Agent is used on purpose: with a desktop-browser agent
+	 * Google returns a JavaScript "deep link" interstitial that contains no photo
+	 * URLs, whereas a plain agent gets redirected to the real album HTML.
+	 */
+	private function http_get( $url ) {
+		if ( function_exists( 'curl_init' ) ) {
+			$ch = curl_init( $url );
+			curl_setopt_array( $ch, [
+				CURLOPT_RETURNTRANSFER => true,
+				CURLOPT_FOLLOWLOCATION => true,
+				CURLOPT_MAXREDIRS      => 5,
+				CURLOPT_TIMEOUT        => 20,
+				CURLOPT_CONNECTTIMEOUT => 10,
+				CURLOPT_ENCODING       => '', // Accept and auto-decompress any supported encoding.
+				CURLOPT_SSL_VERIFYPEER => true,
+				CURLOPT_USERAGENT      => 'Meow-Gallery/' . ( defined( 'MGL_VERSION' ) ? MGL_VERSION : '1.0' ) . ' (+WordPress)',
+			] );
+			$body  = curl_exec( $ch );
+			$errno = curl_errno( $ch );
+			$error = curl_error( $ch );
+			curl_close( $ch );
+			if ( $errno ) {
+				error_log( 'Meow Gallery (Google Photos): cURL error ' . $errno . ': ' . $error );
+				return '';
+			}
+			return is_string( $body ) ? $body : '';
+		}
+
+		$response = wp_safe_remote_get( $url, [ 'timeout' => 20, 'redirection' => 5 ] );
+		if ( is_wp_error( $response ) ) {
+			error_log( 'Meow Gallery (Google Photos): ' . $response->get_error_message() );
+			return '';
+		}
+		return wp_remote_retrieve_body( $response );
 	}
 
 	private function get_dimensions_from_url( $url ) {
@@ -136,8 +181,12 @@ class Meow_MGL_Google_Photos {
 	}
 
 	private function render_gallery( $photos, $layout ) {
-		// Trigger the Meow Gallery JS/CSS enqueue.
-		do_action( 'mgl_gallery_created' );
+		$atts = [ 'layout' => $layout, 'link' => 'media' ];
+
+		// Trigger the Meow Gallery pipeline so the gallery JS is enqueued and
+		// localized. We must match core's 3-argument signature: other plugins
+		// (e.g. Meow Lightbox) hook this action and require all three arguments.
+		do_action( 'mgl_gallery_created', $atts, array_fill( 0, count( $photos ), '0' ), $layout );
 
 		$uid      = uniqid();
 		$class_id = 'mgl-gallery-' . $uid;
@@ -199,7 +248,7 @@ class Meow_MGL_Google_Photos {
 		}, 101 );
 
 		$fake_ids_str  = implode( ',', array_fill( 0, count( $photos ), '0' ) );
-		$gallery_options = $this->core->get_gallery_options( $fake_ids_str, [ 'layout' => $layout, 'link' => 'media' ], false, false, $layout );
+		$gallery_options = $this->core->get_gallery_options( $fake_ids_str, $atts, false, false, $layout );
 		$gallery_options['class_id'] = $class_id;
 
 		$atts_data = [
