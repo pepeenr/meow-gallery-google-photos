@@ -1,15 +1,16 @@
 <?php
 /*
-Plugin Name: Meow Gallery
-Plugin URI: https://meowapps.com
-Description: Gallery system built for photographers, by photographers.
+Plugin Name: Meow Gallery (Google Photos Edition)
+Plugin URI: https://github.com/pepeenr/meow-gallery-google-photos
+Description: Customized fork of Meow Gallery that adds support for displaying photos from a public Google Photos album via the [mgl-google-photos] shortcode or the "Meow Gallery: Google Photos" block. Based on Meow Gallery by Jordy Meow.
 Version: 5.5.0
-Author: Jordy Meow
-Author URI: https://meowapps.com
+Author: Jordy Meow (Google Photos edition by pepeenr)
+Author URI: https://github.com/pepeenr/meow-gallery-google-photos
 Text Domain: meow-gallery
 Domain Path: /languages
 
-Originally developed for two of my websites:
+Customized fork that merges Google Photos album support into Meow Gallery.
+Original plugin developed by Jordy Meow:
 - Jordy Meow (https://offbeatjapan.org)
 - Haikyo (https://haikyo.org)
 */
