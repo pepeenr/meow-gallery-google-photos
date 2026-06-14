@@ -14,6 +14,7 @@ class Meow_MGL_Run {
 
 		$google_photos = new Meow_MGL_Google_Photos( $core );
 		add_shortcode( 'mgl-google-photos', array( $google_photos, 'shortcode' ) );
+		add_action( 'init', array( $google_photos, 'register_block' ) );
 
 		if ( is_admin() ) {
 			add_action( 'init', array( $this, 'enqueue_scripts' ) );

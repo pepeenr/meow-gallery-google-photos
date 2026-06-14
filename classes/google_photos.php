@@ -14,6 +14,51 @@ class Meow_MGL_Google_Photos {
 		$this->core = $core;
 	}
 
+	public function register_block() {
+		if ( !function_exists( 'register_block_type' ) ) {
+			return;
+		}
+
+		$handle      = 'mgl-google-photos-block';
+		$script_path = MGL_PATH . '/app/google-photos-block.js';
+		$cache_buster = file_exists( $script_path ) ? filemtime( $script_path ) : MGL_VERSION;
+
+		wp_register_script(
+			$handle,
+			MGL_URL . 'app/google-photos-block.js',
+			array( 'wp-blocks', 'wp-element', 'wp-block-editor', 'wp-components', 'wp-i18n' ),
+			$cache_buster,
+			true
+		);
+
+		register_block_type( 'meow-gallery/google-photos', array(
+			'editor_script'   => $handle,
+			'attributes'      => array(
+				'albumUrl'      => array( 'type' => 'string', 'default' => '' ),
+				'cacheInterval' => array( 'type' => 'integer', 'default' => self::CACHE_INTERVAL ),
+				'layout'        => array( 'type' => 'string', 'default' => '' ),
+			),
+			'render_callback' => array( $this, 'render_block' ),
+		) );
+	}
+
+	public function render_block( $attributes ) {
+		$album_url = isset( $attributes['albumUrl'] ) ? trim( $attributes['albumUrl'] ) : '';
+		if ( !$this->is_valid_album_url( $album_url ) ) {
+			return '';
+		}
+
+		$cache_interval = isset( $attributes['cacheInterval'] ) ? intval( $attributes['cacheInterval'] ) : self::CACHE_INTERVAL;
+		$layout = !empty( $attributes['layout'] ) ? sanitize_key( $attributes['layout'] ) : $this->core->get_option( 'layout', 'tiles' );
+
+		$photos = $this->get_photos( $album_url, $cache_interval );
+		if ( empty( $photos ) ) {
+			return '';
+		}
+
+		return $this->render_gallery( $photos, $layout );
+	}
+
 	public function shortcode( $atts ) {
 		$atts = shortcode_atts( [
 			'album_url'      => '',
