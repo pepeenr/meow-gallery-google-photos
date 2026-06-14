@@ -5,7 +5,7 @@ Donate link: https://www.patreon.com/meowapps
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 5.5.0
+Stable tag: 1.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -57,5 +57,6 @@ You can find more information on [Meow Apps: Meow Gallery](https://meowapps.com/
 
 == Changelog ==
 
-= 5.5.0+G (2026/06/14) =
+= 1.0.0 (2026/06/14) =
+* Based on Meow Gallery 5.5.0.
 * Add: Support for passing Google album URL and displaying the pictures in a gallery layout. Works with lightbox.

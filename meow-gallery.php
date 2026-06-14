@@ -3,7 +3,7 @@
 Plugin Name: Meow Gallery (Google Photos Edition)
 Plugin URI: https://github.com/pepeenr/meow-gallery-google-photos
 Description: Customized fork of Meow Gallery that adds support for displaying photos from a public Google Photos album via the [mgl-google-photos] shortcode or the "Meow Gallery: Google Photos" block. Based on Meow Gallery by Jordy Meow.
-Version: 5.5.0
+Version: 1.0.0
 Author: Jordy Meow (Google Photos edition by pepeenr)
 Author URI: https://github.com/pepeenr/meow-gallery-google-photos
 Text Domain: meow-gallery
@@ -26,7 +26,12 @@ Credits:
 */
 
 if ( !defined( 'MGL_VERSION' ) ) {
-  define( 'MGL_VERSION', '5.5.0' );
+  // Fork release version (keep in sync with the "Version:" header above and
+  // readme.txt "Stable tag:"). This is what WordPress uses for update checks.
+  define( 'MGL_VERSION', '1.0.0' );
+  // Upstream Meow Gallery version this fork is currently based on. Bump this
+  // (not as the release version) whenever upstream changes are merged in.
+  define( 'MGL_UPSTREAM_VERSION', '5.5.0' );
   define( 'MGL_PREFIX', 'mgl' );
   define( 'MGL_DOMAIN', ' meow-gallery' );
   define( 'MGL_ENTRY', __FILE__ );
